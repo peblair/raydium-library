@@ -117,6 +117,7 @@ dependencies = [
  "bs58",
  "clap",
  "common",
+ "either",
  "hex",
  "raydium_amm",
  "safe-transmute",
