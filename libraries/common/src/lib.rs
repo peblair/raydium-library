@@ -1,5 +1,7 @@
 pub mod rpc;
 pub use rpc::*;
+pub mod rpc_async;
+pub use rpc_async::*;
 pub mod token;
 pub use token::*;
 pub mod system;
