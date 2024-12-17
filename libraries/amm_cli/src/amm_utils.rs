@@ -6,6 +6,7 @@ use crate::{
     amm_types::{AmmDepositInfoResult, AmmKeys, AmmSwapInfoResult, AmmWithdrawInfoResult},
 };
 use common::{common_utils, rpc};
+use either::Either::{self, Left, Right};
 use raydium_amm::state::Loadable;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
@@ -187,7 +188,7 @@ pub fn calculate_swap_info(
     rpc_client: &RpcClient,
     amm_program: Pubkey,
     pool_id: Pubkey,
-    user_input_token: Pubkey,
+    user_input_token_or_direction: Either<Pubkey, raydium_amm::math::SwapDirection>,
     amount_specified: u64,
     slippage_bps: u64,
     base_in: bool,
@@ -196,16 +197,35 @@ pub fn calculate_swap_info(
     let amm_keys = load_amm_keys(&rpc_client, &amm_program, &pool_id).unwrap();
     // reload accounts data to calculate amm pool vault amount
     // get multiple accounts at the same time to ensure data consistency
-    let load_pubkeys = vec![
-        pool_id,
-        amm_keys.amm_pc_vault,
-        amm_keys.amm_coin_vault,
-        user_input_token,
-    ];
-    let rsps = rpc::get_multiple_accounts(&rpc_client, &load_pubkeys).unwrap();
-    let accounts = array_ref![rsps, 0, 4];
-    let [amm_account, amm_pc_vault_account, amm_coin_vault_account, user_input_token_account] =
-        accounts;
+    let rsps: Vec<Option<solana_sdk::account::Account>>;
+    let (amm_account, amm_pc_vault_account, amm_coin_vault_account, user_input_token_account) = match user_input_token_or_direction {
+        Left(user_input_token) => {
+            let load_pubkeys = vec![
+                pool_id,
+                amm_keys.amm_pc_vault,
+                amm_keys.amm_coin_vault,
+                user_input_token,
+            ];
+            rsps = rpc::get_multiple_accounts(&rpc_client, &load_pubkeys).unwrap();
+            let accounts = array_ref![rsps, 0, 4];
+            let [amm_account, amm_pc_vault_account, amm_coin_vault_account, user_input_token_account] =
+                accounts;
+            (amm_account, amm_pc_vault_account, amm_coin_vault_account, user_input_token_account)
+        },
+        Right(_) => {
+            let load_pubkeys = vec![
+                pool_id,
+                amm_keys.amm_pc_vault,
+                amm_keys.amm_coin_vault,
+            ];
+            rsps = rpc::get_multiple_accounts(&rpc_client, &load_pubkeys).unwrap();
+            let accounts = array_ref![rsps, 0, 3];
+            let [amm_account, amm_pc_vault_account, amm_coin_vault_account] =
+                accounts;
+            (amm_account, amm_pc_vault_account, amm_coin_vault_account, &None)
+        }
+    };
+    
 
     let amm_state =
         raydium_amm::state::AmmInfo::load_from_bytes(&amm_account.as_ref().unwrap().data).unwrap();
@@ -214,8 +234,6 @@ pub fn calculate_swap_info(
         common_utils::unpack_token(&amm_pc_vault_account.as_ref().unwrap().data).unwrap();
     let amm_coin_vault =
         common_utils::unpack_token(&amm_coin_vault_account.as_ref().unwrap().data).unwrap();
-    let user_input_token_info =
-        common_utils::unpack_token(&user_input_token_account.as_ref().unwrap().data).unwrap();
 
     // assert for amm not share any liquidity to openbook
     assert_eq!(
@@ -231,22 +249,32 @@ pub fn calculate_swap_info(
         )
         .unwrap();
 
-    let (swap_direction, input_mint, output_mint) =
-        if user_input_token_info.base.mint == amm_keys.amm_coin_mint {
-            (
-                raydium_amm::math::SwapDirection::Coin2PC,
-                amm_keys.amm_coin_mint,
-                amm_keys.amm_pc_mint,
-            )
-        } else if user_input_token_info.base.mint == amm_keys.amm_pc_mint {
-            (
-                raydium_amm::math::SwapDirection::PC2Coin,
-                amm_keys.amm_pc_mint,
-                amm_keys.amm_coin_mint,
-            )
-        } else {
-            panic!("input tokens not match pool vaults");
-        };
+    let (swap_direction, input_mint, output_mint) = match user_input_token_or_direction {
+        Left(_) => {
+            let user_input_token_info = common_utils::unpack_token(&user_input_token_account.as_ref().unwrap().data).unwrap();
+            if user_input_token_info.base.mint == amm_keys.amm_coin_mint {
+                (
+                    raydium_amm::math::SwapDirection::Coin2PC,
+                    amm_keys.amm_coin_mint,
+                    amm_keys.amm_pc_mint,
+                )
+            } else if user_input_token_info.base.mint == amm_keys.amm_pc_mint {
+                (
+                    raydium_amm::math::SwapDirection::PC2Coin,
+                    amm_keys.amm_pc_mint,
+                    amm_keys.amm_coin_mint,
+                )
+            } else {
+                panic!("input tokens not match pool vaults");
+            }
+        },
+        Right(raydium_amm::math::SwapDirection::Coin2PC) => {
+            (raydium_amm::math::SwapDirection::Coin2PC, amm_keys.amm_coin_mint, amm_keys.amm_pc_mint)
+        },
+        Right(raydium_amm::math::SwapDirection::PC2Coin) => {
+            (raydium_amm::math::SwapDirection::PC2Coin, amm_keys.amm_pc_mint, amm_keys.amm_coin_mint)
+        },
+    };
     let other_amount_threshold = amm_math::swap_with_slippage(
         amm_pool_pc_vault_amount,
         amm_pool_coin_vault_amount,

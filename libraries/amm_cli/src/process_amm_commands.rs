@@ -1,6 +1,7 @@
 use crate::{amm_instructions, amm_utils, decode_amm_ix_event, openbook};
 use anyhow::Ok;
 use anyhow::Result;
+use either::Left;
 use clap::Parser;
 use common::{common_types, common_utils, rpc, token};
 use raydium_amm::state::Loadable;
@@ -371,7 +372,7 @@ pub fn process_amm_commands(
                 &rpc_client,
                 config.amm_program(),
                 pool_id,
-                user_input_token,
+                Left(user_input_token),
                 amount_specified,
                 config.slippage(),
                 base_in,
