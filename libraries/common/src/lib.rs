@@ -1,3 +1,5 @@
+pub mod keypair;
+pub use keypair::*;
 pub mod rpc;
 pub use rpc::*;
 pub mod rpc_async;
