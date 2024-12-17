@@ -11,23 +11,28 @@ use solana_client::{
 };
 use solana_sdk::{
     account::Account, commitment_config::CommitmentConfig, instruction::Instruction,
-    message::Message, pubkey::Pubkey, signature::Signature, signer::signers::Signers,
+    message::Message, pubkey::Pubkey, signature::{Keypair, Signature, Signer},
     transaction::Transaction,
 };
 use solana_transaction_status::UiTransactionEncoding;
+use std::sync::Arc;
 
-pub async fn build_txn<T: Signers>(
+pub async fn build_txn(
     client: &RpcClient,
     instructions: &[Instruction],
     fee_payer: &Pubkey,
-    signing_keypairs: &T,
+    signing_keypairs_sendable: &Vec<Arc<[u8; 64]>>,
 ) -> Result<Transaction> {
     let blockhash = client.get_latest_blockhash().await.unwrap();
     let message = Message::new_with_blockhash(&instructions, Some(fee_payer), &blockhash);
     let mut transaction = Transaction::new_unsigned(message);
+    let mut signing_keypairs: Vec<Arc<dyn Signer>> = Vec::new();
+    for kp in signing_keypairs_sendable.iter() {
+        signing_keypairs.push(Arc::new(Keypair::from_bytes(kp.as_ref()).unwrap()));
+    }
 
     transaction
-        .try_partial_sign(signing_keypairs, blockhash)
+        .try_partial_sign(&signing_keypairs, blockhash)
         .unwrap();
     Ok(transaction)
 }
