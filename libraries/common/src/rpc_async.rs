@@ -16,11 +16,11 @@ use solana_sdk::{
 };
 use solana_transaction_status::UiTransactionEncoding;
 
-pub async fn build_txn(
+pub async fn build_txn<T: Signers>(
     client: &RpcClient,
     instructions: &[Instruction],
     fee_payer: &Pubkey,
-    signing_keypairs: &dyn Signers,
+    signing_keypairs: &T,
 ) -> Result<Transaction> {
     let blockhash = client.get_latest_blockhash().await.unwrap();
     let message = Message::new_with_blockhash(&instructions, Some(fee_payer), &blockhash);
