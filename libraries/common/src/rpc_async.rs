@@ -128,6 +128,7 @@ pub async fn get_program_accounts_with_filters(
                     ..RpcAccountInfoConfig::default()
                 },
                 with_context: Some(false),
+                sort_results: None,
             },
         )
         .await
