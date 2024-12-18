@@ -201,7 +201,7 @@ pub fn process_cpswap_commands(
             };
 
             let random_pool_id = if random_pool {
-                let random_pool_keypair = Keypair::generate(&mut OsRng);
+                let random_pool_keypair = Keypair::new();
                 let random_pool_id = random_pool_keypair.pubkey();
                 let signer: Arc<dyn Signer> = Arc::new(random_pool_keypair);
                 if !signing_keypairs.contains(&signer) {

@@ -47,7 +47,7 @@ pub fn handle_program_instruction(
     };
     // println!("{:?}", disc);
 
-    match disc {
+    match disc.as_slice() {
         instruction::CreateAmmConfig::DISCRIMINATOR => {
             let ix = decode_instruction::<instruction::CreateAmmConfig>(&mut ix_data).unwrap();
             #[derive(Debug)]
@@ -505,7 +505,7 @@ pub fn handle_program_event(log_event: &str, with_prefix: bool) -> Result<(), Cl
             slice = &slice[8..];
             disc
         };
-        match disc {
+        match disc.as_slice() {
             ConfigChangeEvent::DISCRIMINATOR => {
                 println!("{:#?}", decode_event::<ConfigChangeEvent>(&mut slice)?);
             }

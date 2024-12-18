@@ -282,7 +282,7 @@ pub fn process_clmm_commands(
                 .0;
                 // personal position not exist
                 // new nft mint
-                let nft_mint = Keypair::generate(&mut OsRng);
+                let nft_mint = Keypair::new();
                 let nft_mint_key = nft_mint.pubkey();
                 let signer: Arc<dyn Signer> = Arc::new(nft_mint);
                 if !signing_keypairs.contains(&signer) {
